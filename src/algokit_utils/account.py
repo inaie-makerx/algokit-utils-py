@@ -1,20 +1,20 @@
+import dataclasses
 import logging
 import os
 import warnings
 from collections.abc import Callable
 from typing import Any
 
+from algokit_utils._transfer import TransferParameters, transfer
+from algokit_utils.network_clients import get_kmd_client_from_algod_client, is_localnet
 from algosdk.account import address_from_private_key
 from algosdk.kmd import KMDClient
 from algosdk.mnemonic import from_private_key, to_private_key
 from algosdk.util import algos_to_microalgos
 from algosdk.v2client.algod import AlgodClient
 
-from algokit_utils._transfer import TransferParameters, transfer
-from algokit_utils.models import Account
-from algokit_utils.network_clients import get_kmd_client_from_algod_client, is_localnet
-
 __all__ = [
+    "Account",
     "create_kmd_wallet_account",
     "get_account",
     "get_account_from_mnemonic",
@@ -28,11 +28,27 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
-def get_account_from_mnemonic(mnemonic: str) -> Account:
-    """Convert a mnemonic (25 word passphrase) into an Account"""
-    private_key = to_private_key(mnemonic)  # type: ignore[no-untyped-call]
-    address = address_from_private_key(private_key)  # type: ignore[no-untyped-call]
-    return Account(private_key, address)
+@dataclasses.dataclass(kw_only=True)
+class Account:
+    """Holds the private_key and address for an account"""
+
+    private_key: str
+    address: str
+
+    @classmethod
+    def from_mnemonic(cls, mnemonic: str) -> "Account":
+        """Convert a mnemonic (25 word passphrase) into an Account"""
+        private_key = to_private_key(mnemonic)  # type: ignore[no-untyped-call]
+        return cls.from_private_key(private_key)
+
+    @classmethod
+    def from_private_key(cls, private_key: str) -> "Account":
+        address = address_from_private_key(private_key)  # type: ignore[no-untyped-call]
+        return cls(address=address, private_key=private_key)
+
+
+get_account_from_mnemonic = Account.from_mnemonic  # deprecated alias
+"""Convert a mnemonic (25 word passphrase) into an Account"""
 
 
 def create_kmd_wallet_account(kmd_client: KMDClient, name: str) -> Account:
@@ -45,11 +61,14 @@ def create_kmd_wallet_account(kmd_client: KMDClient, name: str) -> Account:
     account_key = key_ids[0]
 
     private_account_key = kmd_client.export_key(wallet_handle, "", account_key)  # type: ignore[no-untyped-call]
-    return get_account_from_mnemonic(from_private_key(private_account_key))  # type: ignore[no-untyped-call]
+    return Account.from_private_key(private_account_key)
 
 
 def get_or_create_kmd_wallet_account(
-    client: AlgodClient, name: str, fund_with_algos: float = 1000, kmd_client: KMDClient | None = None
+    client: AlgodClient,
+    name: str,
+    fund_with_algos: float = 1000,
+    kmd_client: KMDClient | None = None,
 ) -> Account:
     """Returns a wallet with specified name, or creates one if not found"""
     kmd_client = kmd_client or get_kmd_client_from_algod_client(client)
@@ -60,7 +79,9 @@ def get_or_create_kmd_wallet_account(
         assert isinstance(account_info, dict)
         if account_info["amount"] > 0:
             return account
-        logger.debug(f"Found existing account in LocalNet with name '{name}', but no funds in the account.")
+        logger.debug(
+            f"Found existing account in LocalNet with name '{name}', but no funds in the account."
+        )
     else:
         account = create_kmd_wallet_account(kmd_client, name)
 
@@ -90,7 +111,8 @@ def _is_default_account(account: dict[str, Any]) -> bool:
 
 def get_sandbox_default_account(client: AlgodClient) -> Account:
     warnings.warn(
-        "get_sandbox_default_account is deprecated, please use get_localnet_default_account instead", DeprecationWarning
+        "get_sandbox_default_account is deprecated, please use get_localnet_default_account instead",
+        DeprecationWarning,
     )
     return get_localnet_default_account(client)
 
@@ -101,7 +123,10 @@ def get_localnet_default_account(client: AlgodClient) -> Account:
         raise Exception("Can't get a default account from non LocalNet network")
 
     account = get_kmd_wallet_account(
-        client, get_kmd_client_from_algod_client(client), "unencrypted-default-wallet", _is_default_account
+        client,
+        get_kmd_client_from_algod_client(client),
+        "unencrypted-default-wallet",
+        _is_default_account,
     )
     assert account
     return account
@@ -115,7 +140,10 @@ def get_dispenser_account(client: AlgodClient) -> Account:
 
 
 def get_kmd_wallet_account(
-    client: AlgodClient, kmd_client: KMDClient, name: str, predicate: Callable[[dict[str, Any]], bool] | None = None
+    client: AlgodClient,
+    kmd_client: KMDClient,
+    name: str,
+    predicate: Callable[[dict[str, Any]], bool] | None = None,
 ) -> Account | None:
     """Returns wallet matching specified name and predicate or None if not found"""
     wallets: list[dict] = kmd_client.list_wallets()  # type: ignore[no-untyped-call]
@@ -135,17 +163,20 @@ def get_kmd_wallet_account(
             if predicate(account):
                 matched_account_key = key
     else:
-        matched_account_key = next(key_ids.__iter__(), None)
+        matched_account_key = next(iter(key_ids), None)
 
     if not matched_account_key:
         return None
 
     private_account_key = kmd_client.export_key(wallet_handle, "", matched_account_key)  # type: ignore[no-untyped-call]
-    return get_account_from_mnemonic(from_private_key(private_account_key))  # type: ignore[no-untyped-call]
+    return Account.from_private_key(private_account_key)
 
 
 def get_account(
-    client: AlgodClient, name: str, fund_with_algos: float = 1000, kmd_client: KMDClient | None = None
+    client: AlgodClient,
+    name: str,
+    fund_with_algos: float = 1000,
+    kmd_client: KMDClient | None = None,
 ) -> Account:
     """Returns an Algorand account with private key loaded by convention based on the given name identifier.
 
@@ -175,11 +206,15 @@ def get_account(
     mnemonic_key = f"{name.upper()}_MNEMONIC"
     mnemonic = os.getenv(mnemonic_key)
     if mnemonic:
-        return get_account_from_mnemonic(mnemonic)
+        return Account.from_mnemonic(mnemonic)
 
     if is_localnet(client):
-        account = get_or_create_kmd_wallet_account(client, name, fund_with_algos, kmd_client)
+        account = get_or_create_kmd_wallet_account(
+            client, name, fund_with_algos, kmd_client
+        )
         os.environ[mnemonic_key] = from_private_key(account.private_key)  # type: ignore[no-untyped-call]
         return account
 
-    raise Exception(f"Missing environment variable '{mnemonic_key}' when looking for account '{name}'")
+    raise Exception(
+        f"Missing environment variable '{mnemonic_key}' when looking for account '{name}'"
+    )

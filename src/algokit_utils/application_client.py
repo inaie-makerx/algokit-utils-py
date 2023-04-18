@@ -32,9 +32,9 @@ from algosdk.v2client.indexer import IndexerClient
 
 import algokit_utils.application_specification as au_spec
 import algokit_utils.deploy as au_deploy
+from algokit_utils.account import Account
 from algokit_utils.deploy import check_app_and_deploy
 from algokit_utils.logic_error import LogicError, parse_logic_error
-from algokit_utils.models import ABITransactionResponse, Account, TransactionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +49,16 @@ __all__ = [
     "ABICreateCallArgs",
     "ABICreateCallArgsDict",
     "ABIMethod",
+    "ABITransactionResponse",
     "ApplicationClient",
     "CommonCallParameters",
     "CommonCallParametersDict",
-    "OnCompleteCallParameters",
-    "OnCompleteCallParametersDict",
     "CreateCallParameters",
     "CreateCallParametersDict",
+    "OnCompleteCallParameters",
+    "OnCompleteCallParametersDict",
     "Program",
+    "TransactionResponse",
     "execute_atc_with_logic_error",
     "get_app_id_from_tx_id",
     "get_next_version",
@@ -78,7 +80,7 @@ representing an ABI method name or signature"""
 class Program:
     """A compiled TEAL program"""
 
-    def __init__(self, program: str, client: AlgodClient):
+    def __init__(self, program: str, client: AlgodClient) -> None:
         """
         Fully compile the program source to binary and generate a
         source map for matching pc to line number
@@ -194,6 +196,32 @@ class ABICreateCallArgsDict(TypedDict, ABICallArgsDict, total=False):
     on_complete: transaction.OnComplete
 
 
+@dataclasses.dataclass(kw_only=True)
+class TransactionResponse:
+    """Response for a non ABI call"""
+
+    tx_id: str
+    """Transaction Id"""
+    confirmed_round: int | None
+    """Round transaction was confirmed, `None` if call was a from a dry-run"""
+
+
+@dataclasses.dataclass(kw_only=True)
+class ABITransactionResponse(TransactionResponse):
+    """Response for an ABI call"""
+
+    raw_value: bytes
+    """The raw response before ABI decoding"""
+    return_value: Any
+    """Decoded ABI result"""
+    decode_error: Exception | None
+    """Details of error that occurred when attempting to decode raw_value"""
+    tx_info: dict
+    """Details of transaction"""
+    method: Method
+    """ABI method used to make call"""
+
+
 class ApplicationClient:
     """A class that wraps an ARC-0032 app spec and provides high productivity methods to deploy and call the app"""
 
@@ -208,7 +236,7 @@ class ApplicationClient:
         sender: str | None = None,
         suggested_params: transaction.SuggestedParams | None = None,
         template_values: au_deploy.TemplateValueMapping | None = None,
-    ):
+    ) -> None:
         ...
 
     @overload
@@ -224,7 +252,7 @@ class ApplicationClient:
         sender: str | None = None,
         suggested_params: transaction.SuggestedParams | None = None,
         template_values: au_deploy.TemplateValueMapping | None = None,
-    ):
+    ) -> None:
         ...
 
     def __init__(
@@ -267,9 +295,10 @@ class ApplicationClient:
         self._clear_program: Program | None
 
         if template_values:
-            self._approval_program, self._clear_program = substitute_template_and_compile(
-                self.algod_client, self.app_spec, template_values
-            )
+            (
+                self._approval_program,
+                self._clear_program,
+            ) = substitute_template_and_compile(self.algod_client, self.app_spec, template_values)
         elif not au_deploy.has_template_vars(self.app_spec):
             self._approval_program = Program(self.app_spec.approval_program, self.algod_client)
             self._clear_program = Program(self.app_spec.clear_program, self.algod_client)
@@ -332,7 +361,13 @@ class ApplicationClient:
         """Creates a copy of this ApplicationClient, using the new signer, sender and app_id values if provided.
         Will also substitute provided template_values into the associated app_spec in the copy"""
         new_client = copy.copy(self)
-        new_client._prepare(new_client, signer=signer, sender=sender, app_id=app_id, template_values=template_values)
+        new_client._prepare(
+            new_client,
+            signer=signer,
+            sender=sender,
+            app_id=app_id,
+            template_values=template_values,
+        )
         return new_client
 
     def _prepare(
@@ -345,12 +380,14 @@ class ApplicationClient:
     ) -> None:
         target.app_id = self.app_id if app_id is None else app_id
         target.signer, target.sender = target.get_signer_sender(
-            AccountTransactionSigner(signer.private_key) if isinstance(signer, Account) else signer, sender
+            AccountTransactionSigner(signer.private_key) if isinstance(signer, Account) else signer,
+            sender,
         )
         if template_values:
-            target._approval_program, target._clear_program = substitute_template_and_compile(
-                target.algod_client, target.app_spec, template_values
-            )
+            (
+                target._approval_program,
+                target._clear_program,
+            ) = substitute_template_and_compile(target.algod_client, target.app_spec, template_values)
 
     def deploy(
         self,
@@ -403,7 +440,13 @@ class ApplicationClient:
         :return DeployResponse: details action taken and relevant transactions
         :raises DeploymentError: If the deployment failed due
         """
-        before = self._approval_program, self._clear_program, self.sender, self.signer, self.app_id
+        before = (
+            self._approval_program,
+            self._clear_program,
+            self.sender,
+            self.signer,
+            self.app_id,
+        )
         try:
             return self._deploy(
                 version,
@@ -420,7 +463,13 @@ class ApplicationClient:
             )
         except Exception as ex:
             # undo any prepare changes if there was an error
-            self._approval_program, self._clear_program, self.sender, self.signer, self.app_id = before
+            (
+                self._approval_program,
+                self._clear_program,
+                self.sender,
+                self.signer,
+                self.app_id,
+            ) = before
             raise ex from None
 
     def _deploy(
@@ -465,14 +514,18 @@ class ApplicationClient:
             allow_update
             if allow_update is not None
             else au_deploy.get_deploy_control(
-                self.app_spec, au_deploy.UPDATABLE_TEMPLATE_NAME, transaction.OnComplete.UpdateApplicationOC
+                self.app_spec,
+                au_deploy.UPDATABLE_TEMPLATE_NAME,
+                transaction.OnComplete.UpdateApplicationOC,
             )
         )
         deletable = (
             allow_delete
             if allow_delete is not None
             else au_deploy.get_deploy_control(
-                self.app_spec, au_deploy.DELETABLE_TEMPLATE_NAME, transaction.OnComplete.DeleteApplicationOC
+                self.app_spec,
+                au_deploy.DELETABLE_TEMPLATE_NAME,
+                transaction.OnComplete.DeleteApplicationOC,
             )
         )
 
@@ -503,7 +556,9 @@ class ApplicationClient:
             app_metadata = _create_metadata(app_spec_note, self.app_id, create_response.confirmed_round)
             self.existing_deployments.apps[name] = app_metadata
             return au_deploy.DeployResponse(
-                app=app_metadata, create_response=create_response, action_taken=au_deploy.OperationPerformed.Create
+                app=app_metadata,
+                create_response=create_response,
+                action_taken=au_deploy.OperationPerformed.Create,
             )
 
         if app.app_id == 0:
@@ -571,7 +626,9 @@ class ApplicationClient:
             )
             self.existing_deployments.apps[name] = app_metadata
             return au_deploy.DeployResponse(
-                app=app_metadata, update_response=update_response, action_taken=au_deploy.OperationPerformed.Update
+                app=app_metadata,
+                update_response=update_response,
+                action_taken=au_deploy.OperationPerformed.Update,
             )
 
         assert isinstance(app, au_deploy.AppMetaData)
@@ -858,7 +915,9 @@ class ApplicationClient:
         )
 
         method = self._resolve_method(
-            call_abi_method, abi_kwargs, _parameters.on_complete or transaction.OnComplete.NoOpOC
+            call_abi_method,
+            abi_kwargs,
+            _parameters.on_complete or transaction.OnComplete.NoOpOC,
         )
         # If its a read-only method, use dryrun (TODO: swap with simulate later?)
         if method:
@@ -1040,7 +1099,7 @@ class ApplicationClient:
     def resolve(self, to_resolve: au_spec.DefaultArgumentDict) -> int | str | bytes:
         """Resolves the default value for an ABI method, based on app_spec"""
 
-        def _data_check(value: Any) -> int | str | bytes:
+        def _data_check(value: Any) -> int | str | bytes:  # noqa: ANN401
             if isinstance(value, int | str | bytes):
                 return value
             raise ValueError(f"Unexpected type for constant data: {value}")
@@ -1283,7 +1342,10 @@ class ApplicationClient:
         return method_args == provided_args
 
     def _find_abi_methods(
-        self, args: ABIArgsDict | None, on_complete: transaction.OnComplete, call_config: au_spec.CallConfig
+        self,
+        args: ABIArgsDict | None,
+        on_complete: transaction.OnComplete,
+        call_config: au_spec.CallConfig,
     ) -> list[Method]:
         return [
             method
@@ -1460,7 +1522,9 @@ def _create_metadata(
     return app_metadata
 
 
-def _convert_call_parameters(args: CommonCallParameters | CommonCallParametersDict | None) -> CreateCallParameters:
+def _convert_call_parameters(
+    args: CommonCallParameters | CommonCallParametersDict | None,
+) -> CreateCallParameters:
     _args = args.__dict__ if isinstance(args, CommonCallParameters) else (args or {})
     return CreateCallParameters(**_args)
 
@@ -1617,7 +1681,9 @@ def _decode_state(state: list[dict[str, Any]], *, raw: bool = False) -> dict[str
 
 
 def _tr_from_atr(
-    atc: AtomicTransactionComposer, result: AtomicTransactionResponse, transaction_index: int = 0
+    atc: AtomicTransactionComposer,
+    result: AtomicTransactionResponse,
+    transaction_index: int = 0,
 ) -> TransactionResponse:
     if result.abi_results and transaction_index in atc.method_dict:  # expecting an ABI result
         abi_index = 0
