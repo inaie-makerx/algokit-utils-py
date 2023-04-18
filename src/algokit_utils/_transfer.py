@@ -56,26 +56,25 @@ def transfer(client: AlgodClient, parameters: TransferParameters) -> PaymentTxn:
 
     suggested_params = parameters.suggested_params or client.suggested_params()
     from_account = parameters.from_account
-    sender = address_from_private_key(from_account.private_key)  # type: ignore[no-untyped-call]
+    sender = address_from_private_key(from_account.private_key)
     transaction = PaymentTxn(
         sender=sender,
         receiver=parameters.to_address,
         amt=parameters.micro_algos,
         note=parameters.note.encode("utf-8") if isinstance(parameters.note, str) else parameters.note,
         sp=suggested_params,
-    )  # type: ignore[no-untyped-call]
+    )
     if parameters.fee_micro_algos:
         transaction.fee = parameters.fee_micro_algos
 
     if not suggested_params.flat_fee:
         _check_fee(transaction, parameters.max_fee_micro_algos)
-    signed_transaction = transaction.sign(from_account.private_key)  # type: ignore[no-untyped-call]
+    signed_transaction = transaction.sign(from_account.private_key)
     client.send_transaction(signed_transaction)
 
-    txid = transaction.get_txid()  # type: ignore[no-untyped-call]
+    txid = transaction.get_txid()
     logger.debug(
-        f"Sent transaction {txid} type={transaction.type} from "
-        f"{address_from_private_key(from_account.private_key)}"  # type: ignore[no-untyped-call]
+        f"Sent transaction {txid} type={transaction.type} from " f"{address_from_private_key(from_account.private_key)}"
     )
 
     return transaction

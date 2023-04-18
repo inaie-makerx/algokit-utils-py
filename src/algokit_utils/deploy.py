@@ -146,8 +146,10 @@ def get_creator_apps(indexer: IndexerClient, creator_account: Account | str) -> 
     # TODO: paginated indexer call instead of N + 1 calls
     while True:
         response = indexer.lookup_account_application_by_creator(
-            creator_address, limit=DEFAULT_INDEXER_MAX_API_RESOURCES_PER_ACCOUNT, next_page=token
-        )  # type: ignore[no-untyped-call]
+            creator_address,
+            limit=DEFAULT_INDEXER_MAX_API_RESOURCES_PER_ACCOUNT,
+            next_page=token,
+        )
         if "message" in response:  # an error occurred
             raise Exception(f"Error querying applications for {creator_address}: {response}")
         for app in response["applications"]:
@@ -161,7 +163,7 @@ def get_creator_apps(indexer: IndexerClient, creator_account: Account | str) -> 
                 address=creator_address,
                 address_role="sender",
                 note_prefix=NOTE_PREFIX.encode("utf-8"),
-            )  # type: ignore[no-untyped-call]
+            )
             transactions: list[dict] = search_transactions_response["transactions"]
             if not transactions:
                 continue
@@ -212,7 +214,7 @@ def get_creator_apps(indexer: IndexerClient, creator_account: Account | str) -> 
 
 
 def _state_schema(schema: dict[str, int]) -> StateSchema:
-    return StateSchema(schema.get("num-uint", 0), schema.get("num-byte-slice", 0))  # type: ignore[no-untyped-call]
+    return StateSchema(schema.get("num-uint", 0), schema.get("num-byte-slice", 0))
 
 
 def _describe_schema_breaks(prefix: str, from_schema: StateSchema, to_schema: StateSchema) -> Iterable[str]:
@@ -279,7 +281,9 @@ def _replace_template_variable(program_lines: list[str], template_variable: str,
 
 
 def add_deploy_template_variables(
-    template_values: TemplateValueDict, allow_update: bool | None, allow_delete: bool | None
+    template_values: TemplateValueDict,
+    allow_update: bool | None,
+    allow_delete: bool | None,
 ) -> None:
     if allow_update is not None:
         template_values[_UPDATABLE] = int(allow_update)
@@ -347,7 +351,9 @@ def has_template_vars(app_spec: ApplicationSpecification) -> bool:
 
 
 def get_deploy_control(
-    app_spec: ApplicationSpecification, template_var: str, on_complete: transaction.OnComplete
+    app_spec: ApplicationSpecification,
+    template_var: str,
+    on_complete: transaction.OnComplete,
 ) -> bool | None:
     if template_var not in strip_comments(app_spec.approval_program):
         return None

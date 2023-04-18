@@ -1252,7 +1252,7 @@ class ApplicationClient:
                 raise Exception(f"ABI arguments specified on a bare call: {', '.join(abi_args)}")
             atc.add_transaction(
                 TransactionWithSigner(
-                    txn=transaction.ApplicationCallTxn(  # type: ignore[no-untyped-call]
+                    txn=transaction.ApplicationCallTxn(
                         sender=sender,
                         sp=sp,
                         index=app_id,
@@ -1560,11 +1560,11 @@ def get_sender_from_signer(signer: TransactionSigner | None) -> str | None:
     """Returns the associated address of a signer, return None if no address found"""
 
     if isinstance(signer, AccountTransactionSigner):
-        sender = address_from_private_key(signer.private_key)  # type: ignore[no-untyped-call]
+        sender = address_from_private_key(signer.private_key)
         assert isinstance(sender, str)
         return sender
     elif isinstance(signer, MultisigTransactionSigner):
-        sender = signer.msig.address()  # type: ignore[no-untyped-call]
+        sender = signer.msig.address()
         assert isinstance(sender, str)
         return sender
     elif isinstance(signer, LogicSigTransactionSigner):

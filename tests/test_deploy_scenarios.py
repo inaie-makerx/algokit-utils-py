@@ -51,7 +51,10 @@ class DeployFixture:
         allow_update: bool | None = None,
     ) -> ApplicationClient:
         app_client = ApplicationClient(
-            self.algod_client, app_spec, indexer_client=self.indexer_client, creator=self.creator
+            self.algod_client,
+            app_spec,
+            indexer_client=self.indexer_client,
+            creator=self.creator,
         )
         response = app_client.deploy(
             version=version,
@@ -87,7 +90,7 @@ class DeployFixture:
 
     def _wait_for_indexer_round(self, round_target: int, max_attempts: int = 100) -> None:
         for _attempts in range(max_attempts):
-            health = self.indexer_client.health()  # type: ignore[no-untyped-call]
+            health = self.indexer_client.health()
             if health["round"] >= round_target:
                 break
 
@@ -109,7 +112,11 @@ def app_name() -> str:
 
 @pytest.fixture()
 def deploy_fixture(
-    caplog: pytest.LogCaptureFixture, request: pytest.FixtureRequest, creator_name: str, creator: Account, app_name: str
+    caplog: pytest.LogCaptureFixture,
+    request: pytest.FixtureRequest,
+    creator_name: str,
+    creator: Account,
+    app_name: str,
 ) -> DeployFixture:
     caplog.set_level(logging.DEBUG)
     return DeployFixture(caplog, request, creator_name=creator_name, creator=creator, app_name=app_name)
@@ -159,7 +166,11 @@ def test_deploy_app_with_existing_immutable_app_and_on_update_equals_replace_app
     assert app_v1.app_id
 
     app_v2 = deploy_fixture.deploy(
-        v2, version="2.0", allow_update=False, allow_delete=True, on_update=OnUpdate.ReplaceApp
+        v2,
+        version="2.0",
+        allow_update=False,
+        allow_delete=True,
+        on_update=OnUpdate.ReplaceApp,
     )
 
     assert app_v1.app_id != app_v2.app_id
@@ -215,15 +226,17 @@ def test_deploy_app_with_existing_permanent_app_on_update_equals_replace_app_fai
     app_v1 = deploy_fixture.deploy(v1, version="1.0", allow_update=False, allow_delete=False)
     assert app_v1.app_id
 
-    apps_before = deploy_fixture.indexer_client.lookup_account_application_by_creator(
-        deploy_fixture.creator.address
-    )  # type: ignore[no-untyped-call]
+    apps_before = deploy_fixture.indexer_client.lookup_account_application_by_creator(deploy_fixture.creator.address)
 
     with pytest.raises(LogicError) as error:
-        deploy_fixture.deploy(v2, version="3.0", allow_update=False, allow_delete=False, on_update=OnUpdate.ReplaceApp)
-    apps_after = deploy_fixture.indexer_client.lookup_account_application_by_creator(
-        deploy_fixture.creator.address
-    )  # type: ignore[no-untyped-call]
+        deploy_fixture.deploy(
+            v2,
+            version="3.0",
+            allow_update=False,
+            allow_delete=False,
+            on_update=OnUpdate.ReplaceApp,
+        )
+    apps_after = deploy_fixture.indexer_client.lookup_account_application_by_creator(deploy_fixture.creator.address)
 
     # ensure no other apps were created
     assert len(apps_before["applications"]) == len(apps_after["applications"])
@@ -243,7 +256,11 @@ def test_deploy_app_with_existing_permanent_app_and_on_schema_break_equals_repla
 
     with pytest.raises(LogicError) as exc_info:
         deploy_fixture.deploy(
-            v3, allow_update=False, allow_delete=False, version="3.0", on_schema_break=OnSchemaBreak.ReplaceApp
+            v3,
+            allow_update=False,
+            allow_delete=False,
+            version="3.0",
+            on_schema_break=OnSchemaBreak.ReplaceApp,
         )
 
     logger.error(f"Deployment failed: {exc_info.value.message}")
@@ -337,7 +354,10 @@ def test_deploy_with_schema_breaking_change(
     v1, _, v3 = get_specs(name=app_name)
 
     app_v1 = deploy_fixture.deploy(
-        v1, version="1.0", allow_delete=deletable == Deletable.Yes, allow_update=updatable == Updatable.Yes
+        v1,
+        version="1.0",
+        allow_delete=deletable == Deletable.Yes,
+        allow_update=updatable == Updatable.Yes,
     )
     assert app_v1.app_id
 
@@ -371,7 +391,10 @@ def test_deploy_with_update(
     v1, v2, _ = get_specs(name=app_name)
 
     app_v1 = deploy_fixture.deploy(
-        v1, version="1.0", allow_delete=deletable == Deletable.Yes, allow_update=updatable == Updatable.Yes
+        v1,
+        version="1.0",
+        allow_delete=deletable == Deletable.Yes,
+        allow_update=updatable == Updatable.Yes,
     )
     assert app_v1.app_id
 

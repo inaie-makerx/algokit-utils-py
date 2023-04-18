@@ -5,13 +5,14 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
-from algokit_utils._transfer import TransferParameters, transfer
-from algokit_utils.network_clients import get_kmd_client_from_algod_client, is_localnet
 from algosdk.account import address_from_private_key
 from algosdk.kmd import KMDClient
 from algosdk.mnemonic import from_private_key, to_private_key
 from algosdk.util import algos_to_microalgos
 from algosdk.v2client.algod import AlgodClient
+
+from algokit_utils._transfer import TransferParameters, transfer
+from algokit_utils.network_clients import get_kmd_client_from_algod_client, is_localnet
 
 __all__ = [
     "Account",
@@ -38,12 +39,12 @@ class Account:
     @classmethod
     def from_mnemonic(cls, mnemonic: str) -> "Account":
         """Convert a mnemonic (25 word passphrase) into an Account"""
-        private_key = to_private_key(mnemonic)  # type: ignore[no-untyped-call]
+        private_key = to_private_key(mnemonic)
         return cls.from_private_key(private_key)
 
     @classmethod
     def from_private_key(cls, private_key: str) -> "Account":
-        address = address_from_private_key(private_key)  # type: ignore[no-untyped-call]
+        address = address_from_private_key(private_key)
         return cls(address=address, private_key=private_key)
 
 
@@ -53,14 +54,14 @@ get_account_from_mnemonic = Account.from_mnemonic  # deprecated alias
 
 def create_kmd_wallet_account(kmd_client: KMDClient, name: str) -> Account:
     """Creates a wallet with specified name"""
-    wallet_id = kmd_client.create_wallet(name, "")["id"]  # type: ignore[no-untyped-call]
-    wallet_handle = kmd_client.init_wallet_handle(wallet_id, "")  # type: ignore[no-untyped-call]
-    kmd_client.generate_key(wallet_handle)  # type: ignore[no-untyped-call]
+    wallet_id = kmd_client.create_wallet(name, "")["id"]
+    wallet_handle = kmd_client.init_wallet_handle(wallet_id, "")
+    kmd_client.generate_key(wallet_handle)
 
-    key_ids: list[str] = kmd_client.list_keys(wallet_handle)  # type: ignore[no-untyped-call]
+    key_ids: list[str] = kmd_client.list_keys(wallet_handle)
     account_key = key_ids[0]
 
-    private_account_key = kmd_client.export_key(wallet_handle, "", account_key)  # type: ignore[no-untyped-call]
+    private_account_key = kmd_client.export_key(wallet_handle, "", account_key)
     return Account.from_private_key(private_account_key)
 
 
@@ -79,9 +80,7 @@ def get_or_create_kmd_wallet_account(
         assert isinstance(account_info, dict)
         if account_info["amount"] > 0:
             return account
-        logger.debug(
-            f"Found existing account in LocalNet with name '{name}', but no funds in the account."
-        )
+        logger.debug(f"Found existing account in LocalNet with name '{name}', but no funds in the account.")
     else:
         account = create_kmd_wallet_account(kmd_client, name)
 
@@ -98,7 +97,7 @@ def get_or_create_kmd_wallet_account(
             TransferParameters(
                 from_account=get_dispenser_account(client),
                 to_address=account.address,
-                micro_algos=algos_to_microalgos(fund_with_algos),  # type: ignore[no-untyped-call]
+                micro_algos=algos_to_microalgos(fund_with_algos),
             ),
         )
 
@@ -146,15 +145,15 @@ def get_kmd_wallet_account(
     predicate: Callable[[dict[str, Any]], bool] | None = None,
 ) -> Account | None:
     """Returns wallet matching specified name and predicate or None if not found"""
-    wallets: list[dict] = kmd_client.list_wallets()  # type: ignore[no-untyped-call]
+    wallets: list[dict] = kmd_client.list_wallets()
 
     wallet = next((w for w in wallets if w["name"] == name), None)
     if wallet is None:
         return None
 
     wallet_id = wallet["id"]
-    wallet_handle = kmd_client.init_wallet_handle(wallet_id, "")  # type: ignore[no-untyped-call]
-    key_ids: list[str] = kmd_client.list_keys(wallet_handle)  # type: ignore[no-untyped-call]
+    wallet_handle = kmd_client.init_wallet_handle(wallet_id, "")
+    key_ids: list[str] = kmd_client.list_keys(wallet_handle)
     matched_account_key = None
     if predicate:
         for key in key_ids:
@@ -168,7 +167,7 @@ def get_kmd_wallet_account(
     if not matched_account_key:
         return None
 
-    private_account_key = kmd_client.export_key(wallet_handle, "", matched_account_key)  # type: ignore[no-untyped-call]
+    private_account_key = kmd_client.export_key(wallet_handle, "", matched_account_key)
     return Account.from_private_key(private_account_key)
 
 
@@ -209,12 +208,8 @@ def get_account(
         return Account.from_mnemonic(mnemonic)
 
     if is_localnet(client):
-        account = get_or_create_kmd_wallet_account(
-            client, name, fund_with_algos, kmd_client
-        )
-        os.environ[mnemonic_key] = from_private_key(account.private_key)  # type: ignore[no-untyped-call]
+        account = get_or_create_kmd_wallet_account(client, name, fund_with_algos, kmd_client)
+        os.environ[mnemonic_key] = from_private_key(account.private_key)
         return account
 
-    raise Exception(
-        f"Missing environment variable '{mnemonic_key}' when looking for account '{name}'"
-    )
+    raise Exception(f"Missing environment variable '{mnemonic_key}' when looking for account '{name}'")
