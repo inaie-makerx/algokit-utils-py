@@ -1,4 +1,5 @@
 import dataclasses
+import warnings
 from collections.abc import Sequence
 from typing import Any, Generic, Protocol, TypeAlias, TypedDict, TypeVar
 
@@ -202,7 +203,19 @@ class CreateCallParametersDict(TypedDict, OnCompleteCallParametersDict, total=Fa
     extra_pages: int
 
 
-# 1.3.0 backwards compatibility
-RawTransactionParameters = TransactionParameters
-CommonCallParameters = TransactionParameters
-CommonCallParametersDict = TransactionParametersDict
+def __getattr__(name: str) -> Any:  # noqa: ANN401
+    # 1.3.0 backwards compatibility
+    renamed = {
+        "RawTransactionParameters": TransactionParameters,
+        "CommonCallParameters": TransactionParameters,
+        "CommonCallParametersDict": TransactionParametersDict,
+    }
+    if result := renamed.get(name):
+        warnings.warn(
+            f"{name} has been renamed to {result.__name__}",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        return result
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

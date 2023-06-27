@@ -1,3 +1,6 @@
+import typing
+import warnings
+
 from algokit_utils._ensure_funded import EnsureBalanceParameters, ensure_funded
 from algokit_utils._transfer import (
     TransferParameters,
@@ -63,15 +66,13 @@ from algokit_utils.models import (
     ABIMethod,
     ABITransactionResponse,
     Account,
-    CommonCallParameters,
-    CommonCallParametersDict,
     CreateCallParameters,
     CreateCallParametersDict,
     CreateTransactionParameters,
     OnCompleteCallParameters,
     OnCompleteCallParametersDict,
-    RawTransactionParameters,
     TransactionParameters,
+    TransactionParametersDict,
     TransactionResponse,
 )
 from algokit_utils.network_clients import (
@@ -111,8 +112,6 @@ __all__ = [
     "ABICreateCallArgs",
     "ABICreateCallArgsDict",
     "ABIMethod",
-    "CommonCallParameters",
-    "CommonCallParametersDict",
     "CreateCallParameters",
     "CreateCallParametersDict",
     "CreateTransactionParameters",
@@ -122,7 +121,6 @@ __all__ = [
     "DeployCreateCallArgsDict",
     "OnCompleteCallParameters",
     "OnCompleteCallParametersDict",
-    "RawTransactionParameters",
     "TransactionParameters",
     "ApplicationClient",
     "DeployResponse",
@@ -164,3 +162,21 @@ __all__ = [
     "ensure_funded",
     "transfer",
 ]
+
+
+def __getattr__(name: str) -> typing.Any:  # noqa: ANN401
+    # 1.3.0 backwards compatibility
+    renamed = {
+        "RawTransactionParameters": TransactionParameters,
+        "CommonCallParameters": TransactionParameters,
+        "CommonCallParametersDict": TransactionParametersDict,
+    }
+    if result := renamed.get(name):
+        warnings.warn(
+            f"{name} has been renamed to {result.__name__}",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        return result
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
