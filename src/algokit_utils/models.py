@@ -12,7 +12,6 @@ from algosdk.atomic_transaction_composer import (
     TransactionSigner,
 )
 from algosdk.encoding import decode_address
-from deprecated import deprecated
 
 ReturnType = TypeVar("ReturnType")
 
@@ -203,17 +202,7 @@ class CreateCallParametersDict(TypedDict, OnCompleteCallParametersDict, total=Fa
     extra_pages: int
 
 
-# Pre 1.3.1 backwards compatibility
-@deprecated(reason="Use TransactionParameters instead", version="1.3.1")
-class RawTransactionParameters(TransactionParameters):
-    """Deprecated, use TransactionParameters instead"""
-
-
-@deprecated(reason="Use TransactionParameters instead", version="1.3.1")
-class CommonCallParameters(TransactionParameters):
-    """Deprecated, use TransactionParameters instead"""
-
-
-@deprecated(reason="Use TransactionParametersDict instead", version="1.3.1")
-class CommonCallParametersDict(TransactionParametersDict):
-    """Deprecated, use TransactionParametersDict instead"""
+# 1.3.0 backwards compatibility
+RawTransactionParameters = TransactionParameters
+CommonCallParameters = TransactionParameters
+CommonCallParametersDict = TransactionParametersDict
